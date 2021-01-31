@@ -1,0 +1,44 @@
+_BASE_: "./Base-DensePose-RCNN-FPN.yaml"
+
+MODEL:
+  WEIGHTS: "./pretrained_weights/HRNet/keypoint_hrnet_w32_DL.pth"
+  KEYPOINT_ON: True
+  DENSEPOSE_ON: True
+  BACKBONE:
+    NAME: "build_hrfpn_backbone"
+  RPN:
+    IN_FEATURES: ['p1', 'p2', 'p3', 'p4', 'p5']
+  ROI_HEADS:
+    NAME: "DensePoseKTNHeads"
+    IN_FEATURES: ['p1', 'p2', 'p3', 'p4', 'p5']
+  ROI_DENSEPOSE_HEAD:
+    PREDICTOR: "DensePoseKptRelationPredictor"
+    KPT_ON: True
+    KPT_CLASSIFIER_WEIGHT_DIR: "pretrained_weights/KTN_models/keypoints_kpt_classifier_weights.pkl"
+    KPT_SURF_RELATION_DIR: "pretrained_weights/KTN_models/kpt_surface_relationships.pkl"
+    POOLER_RESOLUTION: 28
+    HEATMAP_SIZE: 112
+    UP_SCALE: 2
+    KPT_UP_SCALE: 2
+    FG_IOU_THRESHOLD: 0.65
+    FG_MASK_THRESHOLD: 0.3
+  ROI_KEYPOINT_HEAD:
+    LOSS_WEIGHT: 0.05
+SOLVER:
+  MAX_ITER: 130000
+  STEPS: (100000, 120000)
+  IMS_PER_BATCH: 16
+  BASE_LR: 0.03
+  # MAX_ITER: 260000
+  # STEPS: (200000, 240000)
+  # IMS_PER_BATCH: 8
+  # BASE_LR: 0.015
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "norm"
+  CHECKPOINT_PERIOD: 10000
+
+DATASETS:
+  TRAIN: ("densepose_coco_2014_train", "densepose_coco_2014_valminusminival",)
+
+VERSION: 2
