@@ -3,9 +3,9 @@
 # Introduction
 This is the implementation of KTN: Knowledge Transfer Network for Multi-person Densepose Estimation.In this work, we address the multi-person densepose estimation problem, which aims at learning dense correspondences between 2D pixels of human body and 3D human body template. It still poses several challenges due to real-world scenes with scale variations, occlusion, and insufficient annotations. 
 In particular, we address two main problems: 1) how to design a simple yet effective pipeline to alleviate incomplete densepose estimation, and 2) how to equip this pipeline with the ability to handle the issue of limited annotations and class-imbalance labels. 
-To tackle these problems, we develop a novel densepose estimation framework based on a two-stage pipeline, which is called {\normalsize\bf{Knowledge Transfer Network (KTN)}}. 
-Unlike existing works directly propagating the pyramidal base features of regions, we enhance their representation power by awell-designed {\normalsize\bf{multi-instance decoder (MID)}}. 
-Then, we introduce a plug-and-play {\normalsize\bf{knowledge transfer machine (KTM)}}, which facilitates densepose estimationby utilizing the external commonsense knowledge. 
+To tackle these problems, we develop a novel densepose estimation framework based on a two-stage pipeline, which is called ***Knowledge Transfer Network (KTN)***. 
+Unlike existing works directly propagating the pyramidal base features of regions, we enhance their representation power by awell-designed ***multi-instance decoder (MID)***. 
+Then, we introduce a plug-and-play ***knowledge transfer machine (KTM)***, which facilitates densepose estimationby utilizing the external commonsense knowledge.  
 Notably, with the help of our knowledge transfer machine (KTM), current densepose estimation systems (either based on RCNN orfully-convolutional frameworks) can be promoted in terms of the accuracy of human densepose estimation.
 Solid experiments on densepose estimation benchmarks demonstrate the superiority and generalizability of our approach. 
 ![](https://github.com/cfm-wxh/TSN/blob/master/visualization/KTN.png)
