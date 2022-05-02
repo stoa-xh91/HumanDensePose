@@ -1,8 +1,8 @@
-# HumanDensePose
+# KTN: Knowledge Transfer Network for Learning Multi-person 2D-3D Correspondences
 
 # Introduction
 This is the implementation of KTN: Knowledge Transfer Network for Multi-person Densepose Estimation.In this work, we address the multi-person densepose estimation problem, which aims at learning dense correspondences between 2D pixels of human body and 3D human body template. It still poses several challenges due to practical scenarios where real-world scenes are complex and only partial annotations are available, leading to incompelete or false estimations. In this work, we present a novel framework to detect the densepose of multiple people in an image. The proposed method, which we refer to Knowledge Transfer Network (KTN), tackles two main problems: 1) how to refine image representation for alleviating incomplete estimations, and 2) how to reduce false estimation caused by the low-quality training labels (i.e., limited annotations and class-imbalance labels). Unlike existing works directly propagating the pyramidal features of regions for densepose estimation, the KTN uses a refinement of pyramidal representation, where it simultaneously maintains feature resolution and suppresses background pixels, and this strategy results in a substantial increase in accuracy. Moreover, the KTN enhances the ability of 3D based body parsing with external knowledges, where it casts 2D based body parsers trained from sufficient annotations as a 3D based body parser through a structural body knowledge graph. In this way, it significantly reduces the adverse effects caused by the low-quality annotations. Effectiveness of KTN is demonstrated by its superior performance to the state-of-the-art methods on DensePose-COCO dataset. 
-![](https://github.com/cfm-wxh/TSN/blob/master/visualization/KTN.png)
+![](/figures/KTNv2.jpg)
 # Main Results on Densepose-COCO validation set
 <table><tbody>
 <!-- START TABLE -->
@@ -13,7 +13,6 @@ This is the implementation of KTN: Knowledge Transfer Network for Multi-person D
 <th valign="bottom">inference<br/>time<br/>(s/im)</th>
 <th valign="bottom">train<br/>mem<br/>(GB)</th>
 <th valign="bottom">box<br/>AP</th>
-<th valign="bottom">segm<br/>AP</th>
 <th valign="bottom">dp. AP<br/>GPS</th>
 <th valign="bottom">dp. AP<br/>GPSm</th>
 
@@ -24,7 +23,6 @@ This is the implementation of KTN: Knowledge Transfer Network for Multi-person D
 <td align="center">0.307</td>
 <td align="center">0.051</td>
 <td align="center">3.2</td>
-<td align="center">58.1</td>
 <td align="center">58.2</td>
 <td align="center">52.1</td>
 <td align="center">54.9</td>
