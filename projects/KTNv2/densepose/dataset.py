@@ -30,6 +30,8 @@ SPLITS = {
         "coco/val2014",
         "coco/annotations/densepose_valminusminival2014.json",
     ),
+    "densepose_ultrapose_train": ("ultrapose/train2014", "ultrapose/annotations/densepose_train2014.json"),
+    "densepose_ultrapose_minival": ("ultrapose/val2014", "ultrapose/annotations/densepose_valminusminival2014.json"),
 }
 
 for key, (image_root, json_file) in SPLITS.items():

@@ -268,7 +268,8 @@ class DensePoseROIHeads(StandardROIHeads):
         self.densepose_predictor = build_densepose_predictor(
             cfg, self.densepose_head.n_out_channels
         )
-        self.densepose_losses = build_densepose_losses(cfg)
+        # self.densepose_losses = build_densepose_losses(cfg)
+        self.densepose_losses = build_ktn_losses(cfg)
         self.mask_thresh = cfg.MODEL.ROI_DENSEPOSE_HEAD.FG_MASK_THRESHOLD
         if self.mask_thresh >= 0:
             print("-+"*10, "Mask thresh = ", self.mask_thresh, "+-"*10)
@@ -295,6 +296,10 @@ class DensePoseROIHeads(StandardROIHeads):
             return {} if self.training else instances
 
         features = [features[f] for f in self.in_features]
+        bbox_locs_params = self.box_predictor.bbox_pred.weight
+        bbox_cls_params = self.box_predictor.cls_score.weight
+        with torch.no_grad():
+            bbox_params = torch.cat([bbox_cls_params, bbox_locs_params], dim=0)
         if self.training:
             proposals, _ = select_foreground_proposals(instances, self.num_classes)
             features, proposals = self.densepose_data_filter(features, proposals)
@@ -306,8 +311,9 @@ class DensePoseROIHeads(StandardROIHeads):
 
                 features_dp = self.densepose_pooler(features, proposal_boxes)
                 densepose_head_outputs = self.densepose_head(features_dp)
-                densepose_outputs, _, confidences, _ = self.densepose_predictor(densepose_head_outputs)
-                densepose_loss_dict = self.densepose_losses(proposals, densepose_outputs, confidences)
+                densepose_outputs, confidences, _ = self.densepose_predictor(densepose_head_outputs,bbox_params)
+                # densepose_loss_dict = self.densepose_losses(proposals, densepose_outputs, confidences)
+                densepose_loss_dict = self.densepose_losses(proposals, densepose_outputs)
                 return densepose_loss_dict
         else:
             pred_boxes = [x.pred_boxes for x in instances]
@@ -318,8 +324,8 @@ class DensePoseROIHeads(StandardROIHeads):
             features_dp = self.densepose_pooler(features, pred_boxes)
             if len(features_dp) > 0:
                 densepose_head_outputs = self.densepose_head(features_dp)
-                densepose_outputs, _, confidences, _ = self.densepose_predictor(
-                    densepose_head_outputs
+                densepose_outputs, confidences, _ = self.densepose_predictor(
+                    densepose_head_outputs, bbox_params
                 )
             else:
                 # If no detection occurred instances
@@ -328,8 +334,8 @@ class DensePoseROIHeads(StandardROIHeads):
                 densepose_outputs = tuple([empty_tensor] * 4)
                 confidences = tuple([empty_tensor] * 6)
 
-            parsing_inference(densepose_outputs[0], instances)
-            # densepose_inference(densepose_outputs, confidences, instances, self.mask_thresh)
+            # parsing_inference(densepose_outputs[0], instances)
+            densepose_inference(densepose_outputs[:4], confidences, instances, self.mask_thresh)
             return instances
 
     def forward(
@@ -380,7 +386,7 @@ class DensePoseKTNHeads(DensePoseROIHeads):
     def __init__(self, cfg, input_shape):
         super().__init__(cfg, input_shape)
         self._init_dp_keypoint_head(cfg,input_shape)
-
+        self.densepose_losses = build_ktn_losses(cfg)
 
     def _init_dp_keypoint_head(self, cfg,input_shape):
         # fmt: off
@@ -444,13 +450,17 @@ class DensePoseKTNHeads(DensePoseROIHeads):
 
                 features_dp = self.densepose_pooler(features, proposal_boxes)
                 densepose_head_outputs = self.densepose_head(features_dp)
-                densepose_outputs, densepose_outputs_lowres, confidences, _ = self.densepose_predictor(densepose_head_outputs)
+                densepose_outputs, confidences, _ = self.densepose_predictor(densepose_head_outputs)
+                # densepose_outputs, densepose_outputs_lowres, confidences, _ = self.densepose_predictor(densepose_head_outputs)
                 if self.dp_keypoint_on:
                     keypoints_output = densepose_outputs[-1]
                     densepose_outputs = densepose_outputs[:-1]
                 densepose_loss_dict = self.densepose_losses(
-                    proposals, densepose_outputs+densepose_outputs_lowres[1:2], confidences
+                    proposals, densepose_outputs
                 )
+                # densepose_loss_dict = self.densepose_losses(
+                #     proposals, densepose_outputs+densepose_outputs_lowres[1:2], confidences
+                # )
                 if self.dp_keypoint_on:
                     kpt_loss_dict = self._forward_dp_keypoint(keypoints_output, proposals)
                     for _, k in enumerate(kpt_loss_dict.keys()):
@@ -464,11 +474,13 @@ class DensePoseKTNHeads(DensePoseROIHeads):
             features_dp = self.densepose_pooler(features, pred_boxes)
             if len(features_dp) > 0:
                 densepose_head_outputs = self.densepose_head(features_dp)
-                densepose_outputs, _, confidences, _ = self.densepose_predictor(densepose_head_outputs)
+                densepose_outputs, confidences, _ = self.densepose_predictor(densepose_head_outputs)
+                # densepose_outputs, _, confidences, _ = self.densepose_predictor(densepose_head_outputs)
                 if self.dp_keypoint_on:
                     keypoints_output = densepose_outputs[-1]
                     densepose_outputs = densepose_outputs[:-1]
                     instances = self._forward_dp_keypoint(keypoints_output, instances)
+                confidences = (None, None, None, None, None, None)
             else:
                 # If no detection occured instances
                 # set densepose_outputs to empty tensors
@@ -557,7 +569,7 @@ class DensePoseKTNv2Heads(DensePoseROIHeads):
 
                 features_dp = self.densepose_pooler(features, proposal_boxes)
                 densepose_head_outputs = self.densepose_head(features_dp)
-                densepose_outputs, dp_outputs_from_kpt, dp_outputs_from_bbox = self.densepose_predictor(densepose_head_outputs, bbox_params)
+                densepose_outputs, confidences, _ = self.densepose_predictor(densepose_head_outputs, bbox_params)
                 if self.dp_keypoint_on:
                     keypoints_output = densepose_outputs[-1]
                     densepose_outputs = densepose_outputs[:-1]
@@ -568,12 +580,7 @@ class DensePoseKTNv2Heads(DensePoseROIHeads):
                     kpt_loss_dict = self._forward_dp_keypoint(keypoints_output, proposals)
                     for _, k in enumerate(kpt_loss_dict.keys()):
                         densepose_loss_dict[k] = kpt_loss_dict[k]
-                if dp_outputs_from_kpt is not None:
-                    dp_kpt_loss_dict = self.densepose_losses(proposals, dp_outputs_from_kpt)
-                    densepose_loss_dict['loss_densepose_I_from_kpt'] = dp_kpt_loss_dict['loss_densepose_I']
-                if dp_outputs_from_bbox is not None:
-                    dp_box_loss_dict = self.densepose_losses(proposals, dp_outputs_from_bbox)
-                    densepose_loss_dict['loss_densepose_I_from_box'] = dp_box_loss_dict['loss_densepose_I']
+                
                 return densepose_loss_dict
         else:
             pred_boxes = [x.pred_boxes for x in instances]

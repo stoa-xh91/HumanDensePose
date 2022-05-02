@@ -314,7 +314,6 @@ class ASPP(nn.Module):
         res = torch.cat(res, dim=1)
         return self.project(res)
 
-
 # copied from
 # https://github.com/AlexHex7/Non-local_pytorch/blob/master/lib/non_local_embedded_gaussian.py
 # See https://arxiv.org/abs/1711.07971 for details
@@ -426,7 +425,6 @@ class _NonLocalBlockND(nn.Module):
 
         return z
 
-
 class NONLocalBlock2D(_NonLocalBlockND):
     def __init__(self, in_channels, inter_channels=None, sub_sample=True, bn_layer=True):
         super(NONLocalBlock2D, self).__init__(
@@ -436,7 +434,6 @@ class NONLocalBlock2D(_NonLocalBlockND):
             sub_sample=sub_sample,
             bn_layer=bn_layer,
         )
-
 
 @ROI_DENSEPOSE_HEAD_REGISTRY.register()
 class DensePoseV1ConvXHead(nn.Module):
@@ -1083,7 +1080,7 @@ class DensePoseKTNv2PredictorV3(nn.Module):
         rel_matrix = torch.FloatTensor(rel_matrix)
         self.kpt_surface_transfer_matrix = nn.Parameter(data=rel_matrix, requires_grad=True)
         index_weight_size = dim_in * self.kernel_size * self.kernel_size
-
+        
         # # # bbox transfer config
         bbox_weight_size = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
         self.bbox_surface_transfer_matrix = Parameter(torch.Tensor(dim_out_patches, 6))
@@ -1144,6 +1141,393 @@ class DensePoseKTNv2PredictorV3(nn.Module):
             k = k_lowres
         # return (ann_index, index_uv, u, v, m, k), (ann_index, index_uv_from_all_lowres, u, v, m), None
         return (m, index_uv_from_all_lowres, u, v, ann_index, k), (ann_index, index_uv, u, v, m), None
+
+@ROI_DENSEPOSE_HEAD_REGISTRY.register()
+class BBoxKTNPredictor(nn.Module):
+    NUM_ANN_INDICES = 15
+    def __init__(self, cfg, input_channels):
+        super(BBoxKTNPredictor, self).__init__()
+        dim_in = input_channels
+        dim_out_ann_index = self.NUM_ANN_INDICES
+        self.dp_keypoints_on = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_ON
+        dim_out_patches = cfg.MODEL.ROI_DENSEPOSE_HEAD.NUM_PATCHES + 1
+        kernel_size = cfg.MODEL.ROI_DENSEPOSE_HEAD.DECONV_KERNEL
+        
+        self.scale_factor = cfg.MODEL.ROI_DENSEPOSE_HEAD.UP_SCALE
+        self.kernel_size = kernel_size
+        
+        self.u_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.v_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.ann_index_lowres = ConvTranspose2d(
+            dim_in, dim_out_ann_index, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.m_lowres = ConvTranspose2d(
+            dim_in, 2, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        index_weight_size = dim_in * self.kernel_size * self.kernel_size
+        
+        # # # bbox transfer config
+        bbox_weight_size = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
+        bbox_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.BBOX_SURF_RELATION_DIR
+        bbox_crgk_matrix = pickle.load(open(bbox_crkg_dir, 'rb'))
+        bbox_crgk_matrix = bbox_crgk_matrix.transpose()
+        bbox_crgk_matrix = torch.FloatTensor(bbox_crgk_matrix)
+        self.bbox_crgk_matrix = nn.Parameter(data=bbox_crgk_matrix)
+        
+        surface_transformer = []
+        surface_transformer.append(nn.Linear(bbox_weight_size, index_weight_size))
+        surface_transformer.append(nn.LeakyReLU(0.02))
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        self.parameter_transformer = nn.Sequential(*surface_transformer)
+
+        self.initialize_module_params()
+
+    def initialize_module_params(self):
+        for name, param in self.named_parameters():
+            
+            if "bbox_crgk_matrix" in name:
+                continue
+            if "bias" in name:
+                nn.init.constant_(param, 0)
+            elif "weight" in name:
+                if len(param.size())<2:
+                    continue
+                nn.init.kaiming_normal_(param, mode="fan_out", nonlinearity="relu")
+
+    def generate_surface_weights(self, bbox_weight):
+        
+        n_in, n_out, h, w = self.u_lowres.weight.size()
+        body_surface_param_from_box = torch.matmul(self.bbox_crgk_matrix, bbox_weight)
+
+        body_surface_weight = self.parameter_transformer(body_surface_param_from_box)
+        body_surface_weight = body_surface_weight.reshape((self.bbox_crgk_matrix.size(0), n_in, h, w)).permute((1, 0, 2, 3))
+        return body_surface_weight
+
+    def forward(self, head_outputs, bbox_params=None):
+        ann_index_lowres = self.ann_index_lowres(head_outputs)
+        u_lowres = self.u_lowres(head_outputs)
+        v_lowres = self.v_lowres(head_outputs)
+        m_lowres = self.m_lowres(head_outputs)
+        
+        body_surface_weight= self.generate_surface_weights(bbox_params)
+        index_uv_from_all_lowres = nn.functional.conv_transpose2d(head_outputs, weight=body_surface_weight,
+                                                                  padding=int(self.kernel_size / 2 - 1), stride=2)
+        def interp2d(input):
+            return interpolate(
+                input, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
+            )
+        ann_index = interp2d(ann_index_lowres)
+        index_uv = interp2d(index_uv_from_all_lowres)
+        
+        u = interp2d(u_lowres)
+        v = interp2d(v_lowres)
+        m = interp2d(m_lowres)
+
+        return (m, index_uv, u, v, ann_index), (None, None, None, None, None, None), None
+
+@ROI_DENSEPOSE_HEAD_REGISTRY.register()
+class PartKTNPredictor(nn.Module):
+    NUM_ANN_INDICES = 15
+    def __init__(self, cfg, input_channels):
+        super(PartKTNPredictor, self).__init__()
+        dim_in = input_channels
+        dim_out_ann_index = self.NUM_ANN_INDICES
+        self.dp_keypoints_on = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_ON
+        dim_out_patches = cfg.MODEL.ROI_DENSEPOSE_HEAD.NUM_PATCHES + 1
+        kernel_size = cfg.MODEL.ROI_DENSEPOSE_HEAD.DECONV_KERNEL
+        
+        self.scale_factor = cfg.MODEL.ROI_DENSEPOSE_HEAD.UP_SCALE
+        self.kernel_size = kernel_size
+        
+        self.u_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.v_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.ann_index_lowres = ConvTranspose2d(
+            dim_in, dim_out_ann_index, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.m_lowres = ConvTranspose2d(
+            dim_in, 2, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        index_weight_size = dim_in * self.kernel_size * self.kernel_size
+        
+        # # # part transfer config
+        
+        part_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.PART_SURF_RELATION_DIR
+        part_crgk_matrix = pickle.load(open(part_crkg_dir, 'rb'))
+        part_crgk_matrix = part_crgk_matrix.transpose()
+        part_crgk_matrix = torch.FloatTensor(part_crgk_matrix)
+        self.part_crgk_matrix = nn.Parameter(data=part_crgk_matrix)
+        
+        surface_transformer = []
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        surface_transformer.append(nn.LeakyReLU(0.02))
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        self.parameter_transformer = nn.Sequential(*surface_transformer)
+
+        self.initialize_module_params()
+
+    def initialize_module_params(self):
+        for name, param in self.named_parameters():
+            
+            if "part_crgk_matrix" in name:
+                continue
+            if "bias" in name:
+                nn.init.constant_(param, 0)
+            elif "weight" in name:
+                if len(param.size())<2:
+                    continue
+                nn.init.kaiming_normal_(param, mode="fan_out", nonlinearity="relu")
+    def generate_surface_weights(self):
+        
+        part_weight = self.ann_index_lowres.weight
+        n_in, n_out, h, w = part_weight.size()
+        part_weight = part_weight.permute((1, 0, 2, 3)).reshape((n_out, n_in * h * w))
+        body_surface_param_from_part = torch.matmul(self.part_crgk_matrix, part_weight)
+
+        body_surface_weight = self.parameter_transformer(body_surface_param_from_part)
+        body_surface_weight = body_surface_weight.reshape((self.part_crgk_matrix.size(0), n_in, h, w)).permute((1, 0, 2, 3))
+        return body_surface_weight
+
+    def forward(self, head_outputs, bbox_params=None):
+        ann_index_lowres = self.ann_index_lowres(head_outputs)
+        u_lowres = self.u_lowres(head_outputs)
+        v_lowres = self.v_lowres(head_outputs)
+        m_lowres = self.m_lowres(head_outputs)
+        
+        body_surface_weight= self.generate_surface_weights()
+        index_uv_from_all_lowres = nn.functional.conv_transpose2d(head_outputs, weight=body_surface_weight,
+                                                                  padding=int(self.kernel_size / 2 - 1), stride=2)
+        def interp2d(input):
+            return interpolate(
+                input, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
+            )
+        ann_index = interp2d(ann_index_lowres)
+        index_uv = interp2d(index_uv_from_all_lowres)
+        
+        u = interp2d(u_lowres)
+        v = interp2d(v_lowres)
+        m = interp2d(m_lowres)
+
+        return (m, index_uv, u, v, ann_index), (None, None, None, None, None, None), None
+
+@ROI_DENSEPOSE_HEAD_REGISTRY.register()
+class KptKTNPredictor(nn.Module):
+    NUM_ANN_INDICES = 15
+    def __init__(self, cfg, input_channels):
+        super(KptKTNPredictor, self).__init__()
+        dim_in = input_channels
+        dim_out_ann_index = self.NUM_ANN_INDICES
+        self.dp_keypoints_on = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_ON
+        dim_out_patches = cfg.MODEL.ROI_DENSEPOSE_HEAD.NUM_PATCHES + 1
+        kernel_size = cfg.MODEL.ROI_DENSEPOSE_HEAD.DECONV_KERNEL
+        num_keypoints = cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS
+        
+        self.scale_factor = cfg.MODEL.ROI_DENSEPOSE_HEAD.UP_SCALE
+        self.kernel_size = kernel_size
+        
+        self.u_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.v_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.ann_index_lowres = ConvTranspose2d(
+            dim_in, dim_out_ann_index, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.k_lowres = ConvTranspose2d(
+            dim_in, num_keypoints, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.m_lowres = ConvTranspose2d(
+            dim_in, 2, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        index_weight_size = dim_in * self.kernel_size * self.kernel_size
+        
+        # # # kpt transfer config
+        
+        kpt_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_SURF_RELATION_DIR
+        kpt_crgk_matrix = pickle.load(open(kpt_crkg_dir, 'rb'))
+        kpt_crgk_matrix = kpt_crgk_matrix.transpose()
+        kpt_crgk_matrix = torch.FloatTensor(kpt_crgk_matrix)
+        self.kpt_crgk_matrix = nn.Parameter(data=kpt_crgk_matrix)
+        
+        surface_transformer = []
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        surface_transformer.append(nn.LeakyReLU(0.02))
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        self.parameter_transformer = nn.Sequential(*surface_transformer)
+
+        self.initialize_module_params()
+
+    def initialize_module_params(self):
+        for name, param in self.named_parameters():
+            
+            if "kpt_crgk_matrix" in name:
+                continue
+            if "bias" in name:
+                nn.init.constant_(param, 0)
+            elif "weight" in name:
+                if len(param.size())<2:
+                    continue
+                nn.init.kaiming_normal_(param, mode="fan_out", nonlinearity="relu")
+
+    def generate_surface_weights(self):
+        
+        part_weight = self.k_lowres.weight
+        n_in, n_out, h, w = part_weight.size()
+        part_weight = part_weight.permute((1, 0, 2, 3)).reshape((n_out, n_in * h * w))
+        body_surface_param_from_keypoint = torch.matmul(self.kpt_crgk_matrix, part_weight)
+
+        body_surface_weight = self.parameter_transformer(body_surface_param_from_keypoint)
+        body_surface_weight = body_surface_weight.reshape((self.kpt_crgk_matrix.size(0), n_in, h, w)).permute((1, 0, 2, 3))
+        return body_surface_weight
+
+    def forward(self, head_outputs, bbox_params=None):
+        ann_index_lowres = self.ann_index_lowres(head_outputs)
+        k_lowres = self.k_lowres(head_outputs)
+        u_lowres = self.u_lowres(head_outputs)
+        v_lowres = self.v_lowres(head_outputs)
+        m_lowres = self.m_lowres(head_outputs)
+        
+        body_surface_weight= self.generate_surface_weights()
+        index_uv_from_all_lowres = nn.functional.conv_transpose2d(head_outputs, weight=body_surface_weight,
+                                                                  padding=int(self.kernel_size / 2 - 1), stride=2)
+        def interp2d(input):
+            return interpolate(
+                input, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
+            )
+
+        ann_index = interp2d(ann_index_lowres)
+        k = interp2d(k_lowres)
+        index_uv = interp2d(index_uv_from_all_lowres)
+        
+        u = interp2d(u_lowres)
+        v = interp2d(v_lowres)
+        m = interp2d(m_lowres)
+
+        return (m, index_uv, u, v, ann_index, k), (None, None, None, None, None, None), None
+
+@ROI_DENSEPOSE_HEAD_REGISTRY.register()
+class KTNv2Predictor(nn.Module):
+    NUM_ANN_INDICES = 15
+    def __init__(self, cfg, input_channels):
+        super(KTNv2Predictor, self).__init__()
+        dim_in = input_channels
+        dim_out_ann_index = self.NUM_ANN_INDICES
+        self.dp_keypoints_on = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_ON
+        dim_out_patches = cfg.MODEL.ROI_DENSEPOSE_HEAD.NUM_PATCHES + 1
+        kernel_size = cfg.MODEL.ROI_DENSEPOSE_HEAD.DECONV_KERNEL
+        num_keypoints = cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS
+        
+        self.scale_factor = cfg.MODEL.ROI_DENSEPOSE_HEAD.UP_SCALE
+        self.kernel_size = kernel_size
+        
+        self.u_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.v_lowres = ConvTranspose2d(
+            dim_in, dim_out_patches, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.ann_index_lowres = ConvTranspose2d(
+            dim_in, dim_out_ann_index, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.k_lowres = ConvTranspose2d(
+            dim_in, num_keypoints, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        self.m_lowres = ConvTranspose2d(
+            dim_in, 2, kernel_size, stride=2, padding=int(kernel_size / 2 - 1)
+        )
+        index_weight_size = dim_in * self.kernel_size * self.kernel_size
+        
+        # # # bbox transfer config
+        bbox_weight_size = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
+        bbox_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.BBOX_SURF_RELATION_DIR
+        bbox_crgk_matrix = pickle.load(open(bbox_crkg_dir, 'rb'))
+        bbox_crgk_matrix = bbox_crgk_matrix.transpose()
+        bbox_crgk_matrix = torch.FloatTensor(bbox_crgk_matrix)
+        self.bbox_crgk_matrix = nn.Parameter(data=bbox_crgk_matrix)
+
+        # # # part transfer config
+        part_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.PART_SURF_RELATION_DIR
+        part_crgk_matrix = pickle.load(open(part_crkg_dir, 'rb'))
+        part_crgk_matrix = part_crgk_matrix.transpose()
+        part_crgk_matrix = torch.FloatTensor(part_crgk_matrix)
+        self.part_crgk_matrix = nn.Parameter(data=part_crgk_matrix)
+
+        # # # kpt transfer config
+        kpt_crkg_dir = cfg.MODEL.ROI_DENSEPOSE_HEAD.KPT_SURF_RELATION_DIR
+        kpt_crgk_matrix = pickle.load(open(kpt_crkg_dir, 'rb'))
+        kpt_crgk_matrix = kpt_crgk_matrix.transpose()
+        kpt_crgk_matrix = torch.FloatTensor(kpt_crgk_matrix)
+        self.kpt_crgk_matrix = nn.Parameter(data=kpt_crgk_matrix)
+        
+        surface_transformer = []
+        surface_transformer.append(nn.Linear(index_weight_size+index_weight_size+bbox_weight_size, index_weight_size))
+        surface_transformer.append(nn.LeakyReLU(0.02))
+        surface_transformer.append(nn.Linear(index_weight_size, index_weight_size))
+        self.parameter_transformer = nn.Sequential(*surface_transformer)
+
+        self.initialize_module_params()
+
+    def initialize_module_params(self):
+        for name, param in self.named_parameters():
+            
+            if "bbox_crgk_matrix" in name or "part_crgk_matrix" in name or "kpt_crgk_matrix" in name:
+                continue
+            if "bias" in name:
+                nn.init.constant_(param, 0)
+            elif "weight" in name:
+                if len(param.size())<2:
+                    continue
+                nn.init.kaiming_normal_(param, mode="fan_out", nonlinearity="relu")
+
+    def generate_surface_weights(self, bbox_weight):
+        kpt_weight = self.k_lowres.weight
+        part_weight = self.ann_index_lowres.weight
+        n_in, n_out, h, w = kpt_weight.size(0), kpt_weight.size(1), kpt_weight.size(2), kpt_weight.size(3)
+        kpt_weight = kpt_weight.permute((1, 0, 2, 3)).reshape((n_out, n_in * h * w))
+        n_in, n_out, h, w = part_weight.size()
+        part_weight = part_weight.permute((1, 0, 2, 3)).reshape((n_out, n_in * h * w))
+        body_surface_param_from_kpt = torch.matmul(self.kpt_crgk_matrix, kpt_weight)
+        body_surface_param_from_box = torch.matmul(self.bbox_crgk_matrix, bbox_weight)
+        body_surface_param_from_part = torch.matmul(self.part_crgk_matrix, part_weight)
+        syn_body_surface_params = torch.cat([body_surface_param_from_kpt, body_surface_param_from_box, body_surface_param_from_part], dim=1)
+
+        body_surface_weight = self.parameter_transformer(syn_body_surface_params)
+        body_surface_weight = body_surface_weight.reshape((self.kpt_crgk_matrix.size(0), n_in, h, w)).permute((1, 0, 2, 3))
+        return body_surface_weight
+    
+
+    def forward(self, head_outputs, bbox_params=None):
+        ann_index_lowres = self.ann_index_lowres(head_outputs)
+        k_lowres = self.k_lowres(head_outputs)
+        u_lowres = self.u_lowres(head_outputs)
+        v_lowres = self.v_lowres(head_outputs)
+        m_lowres = self.m_lowres(head_outputs)
+        
+        body_surface_weight= self.generate_surface_weights(bbox_params)
+        index_uv_from_all_lowres = nn.functional.conv_transpose2d(head_outputs, weight=body_surface_weight,
+                                                                  padding=int(self.kernel_size / 2 - 1), stride=2)
+        def interp2d(input):
+            return interpolate(
+                input, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
+            )
+
+        ann_index = interp2d(ann_index_lowres)
+        k = interp2d(k_lowres)
+        index_uv = interp2d(index_uv_from_all_lowres)
+        
+        u = interp2d(u_lowres)
+        v = interp2d(v_lowres)
+        m = interp2d(m_lowres)
+
+        return (m, index_uv, u, v, ann_index, k), (None, None, None, None, None, None), None
 
 def dp_keypoint_rcnn_loss(pred_keypoint_logits, instances, normalizer):
 

@@ -64,6 +64,16 @@ DATASETS = [
         images_root="posetrack2017/posetrack_data_2017",
         annotations_fpath="posetrack2017/densepose_posetrack_val2017.json",
     ),
+    CocoDatasetInfo(
+        name="densepose_ultrapose_train",
+        images_root="ultrapose/train2014",
+        annotations_fpath="ultrapose/annotations/densepose_train2014.json",
+    ),
+    CocoDatasetInfo(
+        name="densepose_ultrapose_minival",
+        images_root="ultrapose/val2014",
+        annotations_fpath="ultrapose/annotations/densepose_valminusminival2014.json",
+    ),
 ]
 
 DATASETS += [
