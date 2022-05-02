@@ -70,7 +70,7 @@ python -m pip install -e .
 ## Data prepare
 
 
-1. Request dataset here:[DensePose](https://github.com/facebookresearch/detectron2) and [UltraPose](https://github.com/MomoAILab/ultrapose)
+1. Request dataset here: [DensePose](https://github.com/facebookresearch/detectron2) and [UltraPose](https://github.com/MomoAILab/ultrapose)
 
 
 2. Please download dataset under datasets
