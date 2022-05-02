@@ -17,28 +17,28 @@ This is the implementation of KTN: Knowledge Transfer Network for Multi-person D
 
 <!-- TABLE BODY -->
 <!-- ROW: densepose_rcnn_R_50_FPN_s1x_legacy -->
-<tr><td align="left">DensePose RCNN*</td>
+<tr><td align="center">DensePose RCNN*</td>
 <td align="center">58.8</td>
 <td align="center">89.3</td>
 <td align="center">67.2</td>
 <td align="center">55.0</td>
 <td align="center">60.2</td>
 
-<tr><td align="left">DensePose RCNN* with MID</td>
+<tr><td align="center">DensePose RCNN* with MID</td>
 <td align="center">64.4</td>
 <td align="center">90.8</td>
 <td align="center">73.6</td>
 <td align="center">60.2</td>
 <td align="center">65.7</td>
 
-<tr><td align="left">DensePose RCNN* with KTM</td>
+<tr><td align="center">DensePose RCNN* with KTM</td>
 <td align="center">63.4</td>
 <td align="center">91.6</td>
 <td align="center">72.2</td>
 <td align="center">61.0</td>
 <td align="center">64.8</td>
 
-<tr><td align="left">KTNv2</td>
+<tr><td align="center">KTNv2</td>
 <td align="center">68.3</td>
 <td align="center">92.1</td>
 <td align="center">77.1</td>
