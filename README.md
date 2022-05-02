@@ -24,6 +24,13 @@ This is the implementation of KTN: Knowledge Transfer Network for Multi-person D
 <td align="center">55.0</td>
 <td align="center">60.2</td>
 
+<tr><td align="left">DensePose RCNN* with MID</td>
+<td align="center">64.4</td>
+<td align="center">90.8</td>
+<td align="center">73.6</td>
+<td align="center">60.2</td>
+<td align="center">65.7</td>
+
 </tr>
 
 </tbody></table>
