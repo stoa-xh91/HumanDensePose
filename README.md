@@ -92,8 +92,7 @@ Make sure to put the files as the following structure:
   ├─detectron2
 ```
 
-## Pretrain and weight prepare
-Please download the models from [Baidu](https://pan.baidu.com/s/1OyuimZ4Xd6rtC3iD4SbyZQ) (fccy)
+3. Please download the models from [Baidu](https://pan.baidu.com/s/1OyuimZ4Xd6rtC3iD4SbyZQ) (fccy)
 
 Make sure to put the files as the follwing structure
 
