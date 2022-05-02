@@ -68,7 +68,12 @@ python -m pip install -e .
 # Prepare
 
 ## Data prepare
-Please download coco2014 dataset under datasets
+
+
+1. Request dataset here:[DensePose](https://github.com/facebookresearch/detectron2) and [UltraPose](https://github.com/MomoAILab/ultrapose)
+
+
+2. Please download dataset under datasets
 
 Make sure to put the files as the following structure:
 
@@ -88,7 +93,7 @@ Make sure to put the files as the following structure:
 ```
 
 ## Pretrain and weight prepare
-Please download the models from [Baidu](https://pan.baidu.com/s/1OyuimZ4Xd6rtC3iD4SbyZQ) (Extraction Code:fccy)
+Please download the models from [Baidu](https://pan.baidu.com/s/1OyuimZ4Xd6rtC3iD4SbyZQ) (fccy)
 
 Make sure to put the files as the follwing structure
 
