@@ -31,6 +31,20 @@ This is the implementation of KTN: Knowledge Transfer Network for Multi-person D
 <td align="center">60.2</td>
 <td align="center">65.7</td>
 
+<tr><td align="left">DensePose RCNN* with KTM</td>
+<td align="center">63.4</td>
+<td align="center">91.6</td>
+<td align="center">72.2</td>
+<td align="center">61.0</td>
+<td align="center">64.8</td>
+
+<tr><td align="left">KTNv2</td>
+<td align="center">68.3</td>
+<td align="center">92.1</td>
+<td align="center">77.1</td>
+<td align="center">63.8</td>
+<td align="center">70.0</td>
+
 </tr>
 
 </tbody></table>
