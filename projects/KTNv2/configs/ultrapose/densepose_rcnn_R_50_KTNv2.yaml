@@ -1,0 +1,35 @@
+_BASE_: "./Base-DensePose-RCNN-FPN.yaml"
+MODEL:
+  KEYPOINT_ON: True 
+  DENSEPOSE_ON: True
+  WEIGHTS: "pretrained_weights/KTN_models/R50-MIDv2-kpt.pth"
+  ROI_HEADS:
+    NAME: "DensePoseKTNv2Heads"
+  ROI_DENSEPOSE_HEAD:
+    NAME: "DensePoseKTNHead"
+    PREDICTOR: "KTNv2Predictor"
+    KPT_ON: True
+    KPT_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/kpt_surf_crkg.pkl"
+    PART_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/part_surf_crkg.pkl"
+    BBOX_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/person_surf_crkg.pkl"
+    POOLER_RESOLUTION: 28
+    HEATMAP_SIZE: 112
+    UP_SCALE: 2
+    KPT_UP_SCALE: 2
+    INDEX_WEIGHTS: 2.0
+    FG_IOU_THRESHOLD: 0.65
+    FG_MASK_THRESHOLD: 0.3
+    DECODER_MULTI_SCALE_ON: True
+  ROI_KEYPOINT_HEAD:
+    LOSS_WEIGHT: 0.1
+SOLVER:
+  MAX_ITER: 130000
+  STEPS: (100000, 120000)
+  IMS_PER_BATCH: 4
+  BASE_LR: 0.0001
+  CHECKPOINT_PERIOD: 10000
+
+DATASETS:
+  TRAIN: ("densepose_ultrapose_train",)
+
+VERSION: 2
