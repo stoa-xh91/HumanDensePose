@@ -2,17 +2,18 @@ _BASE_: "./Base-DensePose-RCNN-FPN.yaml"
 MODEL:
   KEYPOINT_ON: True 
   DENSEPOSE_ON: True
-  WEIGHTS: "./pretrained_weights/R50-MIDv2-kpt.pth"
+  WEIGHTS: "pretrained_weights/KTN_models/R50-MIDv2-kpt.pth"
   ROI_HEADS:
     NAME: "DensePoseKTNv2Heads"
   ROI_DENSEPOSE_HEAD:
     NAME: "DensePoseKTNHead"
-    PREDICTOR: "DensePoseKTNv2PredictorV3"
+    PREDICTOR: "KTNv2Predictor"
     KPT_ON: True
-    KPT_CLASSIFIER_WEIGHT_DIR: "pretrained_weights/KTN_models/keypoints_kpt_classifier_weights.pkl"
-    KPT_SURF_RELATION_DIR: "pretrained_weights/KTN_models/kpt_surface_relationships.pkl"
-    POOLER_RESOLUTION: 28
-    HEATMAP_SIZE: 112
+    KPT_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/kpt_surf_crkg.pkl"
+    PART_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/part_surf_crkg.pkl"
+    BBOX_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/person_surf_crkg.pkl"
+    POOLER_RESOLUTION: 14
+    HEATMAP_SIZE: 56
     UP_SCALE: 2
     KPT_UP_SCALE: 2
     INDEX_WEIGHTS: 2.0

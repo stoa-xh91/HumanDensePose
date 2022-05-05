@@ -14,8 +14,9 @@ MODEL:
     NAME: "DensePoseKTNHead"
     PREDICTOR: "DensePoseKTNv2PredictorV3"
     KPT_ON: True
-    KPT_CLASSIFIER_WEIGHT_DIR: "pretrained_weights/KTN_models/keypoints_kpt_classifier_weights.pkl"
-    KPT_SURF_RELATION_DIR: "pretrained_weights/KTN_models/kpt_surface_relationships.pkl"
+    KPT_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/kpt_surf_crkg.pkl"
+    PART_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/part_surf_crkg.pkl"
+    BBOX_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/person_surf_crkg.pkl"
     POOLER_RESOLUTION: 28
     HEATMAP_SIZE: 112
     UP_SCALE: 2
@@ -31,10 +32,6 @@ SOLVER:
   STEPS: (100000, 120000)
   IMS_PER_BATCH: 16
   BASE_LR: 0.03
-  # MAX_ITER: 260000
-  # STEPS: (200000, 240000)
-  # IMS_PER_BATCH: 8
-  # BASE_LR: 0.015
   CLIP_GRADIENTS:
     ENABLED: True
     CLIP_TYPE: "norm"
