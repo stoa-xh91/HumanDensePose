@@ -92,7 +92,7 @@ Make sure to put the files as the following structure:
   ├─detectron2
 ```
 
-3. Please download the models from [Baidu](https://pan.baidu.com/s/1OyuimZ4Xd6rtC3iD4SbyZQ) (fccy)
+3. Please download the models from [Baidu](https://pan.baidu.com/s/1SZEHWqFyU0m1fCCdZWBNHA) (w1bh)
 
 Make sure to put the files as the follwing structure
 
