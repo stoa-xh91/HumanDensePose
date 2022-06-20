@@ -147,3 +147,25 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python projects/KTN/train_net.py \
 --eval-only \
 MODEL.WEIGHTS pretrained_weights/KTN_models/KTNv2_R50.pth
 ```
+
+# Acknowledge
+Our code is mainly based on [DensePose](https://github.com/facebookresearch/detectron2/tree/main/projects/DensePose). 
+
+# Citation
+
+```
+@inproceedings{densepose:ktn,
+	title={{KTN:} Knowledge Transfer Network for Multi-person DensePose Estimation},
+	author={Xuanhan Wang and Lianli Gao and Jingkuan Song and Heng Tao Shen},
+	pages={3780--3788},
+	booktitle = {ACM MM},
+	year={2020}
+}
+
+@article{WangKTN++, 
+	title={KTN: Knowledge Transfer Network for Learning Multi-person 2D-3D Correspondences},
+	author={Wang, Xuanhan and Gao, Lianli and Zhou, Yixuan and Song, Jingkuan and Wang, Meng},
+	journal={IEEE Transactions on Circuits and Systems for Video Technology}, 
+	year={2022}
+}
+```
