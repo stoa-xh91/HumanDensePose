@@ -12,8 +12,8 @@ MODEL:
     KPT_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/kpt_surf_crkg.pkl"
     PART_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/part_surf_crkg.pkl"
     BBOX_SURF_RELATION_DIR: "projects/KTNv2/comm_knowledge/person_surf_crkg.pkl"
-    POOLER_RESOLUTION: 14
-    HEATMAP_SIZE: 56
+    POOLER_RESOLUTION: 28
+    HEATMAP_SIZE: 112
     UP_SCALE: 2
     KPT_UP_SCALE: 2
     INDEX_WEIGHTS: 2.0
